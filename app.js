@@ -9,6 +9,16 @@ let found   = [];
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+// Безопасная конвертация Uint8Array → base64 без spread (работает на мобильных)
+function bytesToBase64(bytes) {
+  let bin = '';
+  const chunk = 8192;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+}
+
 function setStatus(msg, cls='info') {
   const el = $('st'); el.textContent = msg; el.className = 'status ' + cls;
 }
@@ -66,7 +76,7 @@ async function fetchImg(tile) {
   } catch(e) { return null; }
 }
 
-$('btn').addEventListener('click', async () => {
+function parseArticles(raw) {
   const raw = $('arts').value.trim();
   if (!raw) return setStatus('Введите хотя бы один артикул', 'err');
   $('btn').disabled = true;
@@ -130,7 +140,7 @@ function renderFound() {
     const w = t.width_mm, h = t.height_mm;
     const sz = w && h ? `${w/10}×${h/10}×${t.thickness_mm||'?'} см` : '—';
     const img = item.imgBytes
-      ? `<img class="fi-img" src="data:image/jpeg;base64,${btoa(String.fromCharCode(...item.imgBytes))}" alt="">`
+      ? `<img class="fi-img" src="data:image/jpeg;base64,${bytesToBase64(item.imgBytes)}" alt="">`
       : `<div class="fi-ph">${esc(t.article.slice(0,5))}</div>`;
     return `<div class="fi">${img}<div><div class="fi-art">${esc(t.article)}</div><div class="fi-name">${esc(nm)}</div><div class="fi-size">${sz}</div></div></div>`;
   }).join('');
