@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>КП — KERAMA MARAZZI</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: Arial, sans-serif;
+  background: #f4f5f7;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 16px;
+}
+.card {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.10);
+  width: 100%;
+  max-width: 480px;
+  overflow: hidden;
+}
+.hdr { background: #16213e; padding: 18px 22px; }
+.hdr-logo { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: .4px; }
+.hdr-sub  { font-size: 12px; color: #7a8fb0; margin-top: 4px; }
+.body { padding: 22px; }
+label { display: block; font-size: 12px; font-weight: 700; color: #444; margin-bottom: 7px; }
+textarea {
+  width: 100%; height: 120px;
+  border: 2px solid #dde3f0; border-radius: 9px;
+  padding: 11px 13px;
+  font-size: 14px; font-family: 'Courier New', monospace;
+  resize: vertical; outline: none; transition: border-color .15s; line-height: 1.6;
+}
+textarea:focus { border-color: #16213e; }
+textarea::placeholder { font-family: Arial,sans-serif; font-size: 13px; color: #bbb; }
+.hint { font-size: 11px; color: #aaa; margin-top: 6px; margin-bottom: 18px; }
+.btn {
+  width: 100%; background: #16213e; color: #fff;
+  border: none; border-radius: 9px;
+  padding: 14px; font-size: 15px; font-weight: 700;
+  cursor: pointer; letter-spacing: .3px; transition: background .15s;
+}
+.btn:hover { background: #0f3460; }
+.btn:disabled { background: #aaa; cursor: not-allowed; }
+.progress { height: 4px; background: #eee; border-radius: 2px; margin-top: 14px; overflow: hidden; display: none; }
+.progress-bar { height: 100%; width: 0%; background: #16213e; transition: width .3s; }
+.status { margin-top: 12px; padding: 10px 13px; border-radius: 8px; font-size: 13px; display: none; }
+.status.info { display:block; background:#eef2ff; color:#3a5bd9; }
+.status.ok   { display:block; background:#eafaf1; color:#1e8449; }
+.status.err  { display:block; background:#fdf0f0; color:#c0392b; }
+.found { margin-top: 18px; display: none; }
+.found-title { font-size: 12px; font-weight: 700; color: #444; margin-bottom: 8px; }
+.fi {
+  display: flex; align-items: center; gap: 10px;
+  background: #f8f9ff; border: 1px solid #e0e6ff;
+  border-radius: 8px; padding: 9px 11px; margin-bottom: 7px;
+}
+.fi-ph { width:40px; height:40px; border-radius:5px; background:#e8eaf0; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:8px; color:#aaa; text-align:center; }
+.fi-img { width:40px; height:40px; object-fit:cover; border-radius:5px; flex-shrink:0; border:1px solid #ddd; }
+.fi-art  { font-size:12px; font-weight:700; color:#16213e; }
+.fi-name { font-size:11px; color:#555; }
+.fi-size { font-size:10px; color:#aaa; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="hdr">
+    <div class="hdr-logo">КП · KERAMA MARAZZI</div>
+    <div class="hdr-sub">Введите артикулы — скачайте готовый DOCX</div>
+  </div>
+  <div class="body">
+    <label for="arts">Артикулы</label>
+    <textarea id="arts" placeholder="SG614820R, DD507420R&#10;KM3060B0021R&#10;11205R DD602220R"></textarea>
+    <div class="hint">Через запятую, пробел или с новой строки</div>
+    <button class="btn" id="btn">⬇ Создать КП</button>
+    <div class="progress" id="prog"><div class="progress-bar" id="bar"></div></div>
+    <div class="status" id="st"></div>
+    <div class="found" id="found">
+      <div class="found-title">Найдено в каталоге:</div>
+      <div id="foundList"></div>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/docx@9.5.3/build/index.umd.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
