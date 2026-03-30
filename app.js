@@ -150,6 +150,7 @@ function renderFound() {
 }
 
 async function buildDocx(items) {
+  if (typeof docx === 'undefined') throw new Error('Библиотека docx не загружена');
   const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
           ImageRun, AlignmentType, WidthType, BorderStyle,
           ExternalHyperlink, VerticalAlign } = docx;
@@ -222,6 +223,13 @@ async function buildDocx(items) {
       ],
     }],
   });
-  const blob = await Packer.toBlob(doc);
-  return await blob.arrayBuffer();
+  // toBlob для браузера, toBuffer для Node.js
+  if (typeof Packer.toBlob === 'function') {
+    const blob = await Packer.toBlob(doc);
+    return await blob.arrayBuffer();
+  } else {
+    // Fallback: toBuffer возвращает Uint8Array в браузерной сборке
+    const buf = await Packer.toBuffer(doc);
+    return buf.buffer || buf;
+  }
 }
