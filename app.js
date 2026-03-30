@@ -1,148 +1,151 @@
-// app.js — КП Generator KERAMA MARAZZI (веб-версия)
+// app.js — КП Generator KERAMA MARAZZI
 'use strict';
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyDEwJXSJR7REj4JC4BSIPJn_wMVrmWQ1ZmHKCCaRv3FweWfJSbd2sfOH4SG50V6PMo/exec';
-
 const $ = id => document.getElementById(id);
 let catalog = [];
 let found   = [];
 
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-// Безопасная конвертация Uint8Array → base64 без spread (работает на мобильных)
-function bytesToBase64(bytes) {
-  let bin = '';
-  const chunk = 8192;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-  }
-  return btoa(bin);
+// ── УТИЛИТЫ ───────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
 function setStatus(msg, cls='info') {
-  const el = $('st'); el.textContent = msg; el.className = 'status ' + cls;
+  const el=$('st'); el.textContent=msg; el.className='status '+cls;
 }
 function setProgress(pct) {
-  $('prog').style.display = pct > 0 ? 'block' : 'none';
-  $('bar').style.width = pct + '%';
+  $('prog').style.display = pct>0?'block':'none';
+  $('bar').style.width = pct+'%';
+}
+// Безопасная конвертация Uint8Array → base64 (чанками, без spread)
+function bytesToBase64(bytes) {
+  let bin=''; const chunk=8192;
+  for (let i=0; i<bytes.length; i+=chunk)
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
+  return btoa(bin);
+}
+function decodeB64(b64) {
+  const bin=atob(b64);
+  const arr=new Uint8Array(bin.length);
+  for (let i=0; i<bin.length; i++) arr[i]=bin.charCodeAt(i)&0xff;
+  return arr;
+}
+function parseArticles(raw) {
+  return [...new Set(raw.split(/[\s,;]+/).map(s=>s.trim().toUpperCase().replace(/\s+/g,'')).filter(Boolean))];
+}
+function tileUrl(article) {
+  const art=article.toUpperCase();
+  const isTile=/^\d/.test(art)||/^KM\d/.test(art)||/^KMB|^KMD/.test(art);
+  return 'https://kerama-marazzi.com/catalog/'+(isTile?'ceramic_tile':'gres')+'/'+art.toLowerCase()+'/';
 }
 
+// ── ЗАГРУЗКА КАТАЛОГА ─────────────────────────────────────────────────────
+async function loadCatalog() {
+  if (catalog.length>0) return;
+  try {
+    const cached=JSON.parse(localStorage.getItem('km_catalog')||'null');
+    if (cached && Date.now()-cached.ts<86400000) { catalog=cached.data; return; }
+  } catch(e) {}
+  const r=await fetch(SCRIPT_URL+'?action=tiles',{redirect:'follow'});
+  if (!r.ok) throw new Error('HTTP '+r.status);
+  const data=await r.json();
+  catalog=data.tiles||data;
+  if (!Array.isArray(catalog)) throw new Error('Неверный формат tiles.json');
+  try { localStorage.setItem('km_catalog',JSON.stringify({data:catalog,ts:Date.now()})); } catch(e){}
+}
+
+// ── ЗАПРОС К APPS SCRIPT ──────────────────────────────────────────────────
 async function gas(params) {
-  const url = SCRIPT_URL + '?' + new URLSearchParams(params).toString();
-  const r   = await fetch(url, { redirect: 'follow' });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const url=SCRIPT_URL+'?'+new URLSearchParams(params).toString();
+  const r=await fetch(url,{redirect:'follow'});
+  if (!r.ok) throw new Error('HTTP '+r.status);
   return r.json();
 }
 
-async function loadCatalog() {
-  if (catalog.length > 0) return;
-  // localStorage как кэш (24 часа)
-  try {
-    const cached = JSON.parse(localStorage.getItem('km_catalog') || 'null');
-    if (cached && Date.now() - cached.ts < 86400_000) { catalog = cached.data; return; }
-  } catch(e) {}
-  const data = await fetch(SCRIPT_URL + '?action=tiles', { redirect: 'follow' }).then(r => r.json());
-  catalog = data.tiles || data;
-  if (!Array.isArray(catalog)) throw new Error('Неверный формат tiles.json');
-  try { localStorage.setItem('km_catalog', JSON.stringify({ data: catalog, ts: Date.now() })); } catch(e) {}
-}
-
-function parseArticles(raw) {
-  return [...new Set(raw.split(/[\s,;]+/).map(s => s.trim().toUpperCase().replace(/\s+/g,'')).filter(Boolean))];
-}
-
+// ── ЗАГРУЗКА ИЗОБРАЖЕНИЯ ──────────────────────────────────────────────────
 function getJpgName(tile) {
-  const list = tile.textures || [];
-  const p = list.find(t => t.toLowerCase().endsWith('.jpg')) || tile.texture_url || '';
-  return p ? p.split('/').pop() : null;
+  const list=tile.textures||[];
+  const p=list.find(t=>t.toLowerCase().endsWith('.jpg'))||tile.texture_url||'';
+  return p?p.split('/').pop():null;
 }
-
-function tileUrl(article) {
-  const art = article.toUpperCase();
-  const isCeramicTile = /^\d/.test(art) || /^KM\d/.test(art) || /^KMB|^KMD/.test(art);
-  return `https://kerama-marazzi.com/catalog/${isCeramicTile ? 'ceramic_tile' : 'gres'}/${art.toLowerCase()}/`;
-}
-
 async function fetchImg(tile) {
-  const fname = getJpgName(tile);
+  const fname=getJpgName(tile);
   if (!fname) return null;
   try {
-    const data = await gas({ action: 'img', file: fname });
-    if (!data.ok || !data.data) return null;
-    const bin = atob(data.data);
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i) & 0xff;
-    return arr;
+    const data=await gas({action:'img',file:fname});
+    if (!data.ok||!data.data) return null;
+    return decodeB64(data.data);
   } catch(e) { return null; }
 }
 
-function parseArticles(raw) {
-  const raw = $('arts').value.trim();
-  if (!raw) return setStatus('Введите хотя бы один артикул', 'err');
-  $('btn').disabled = true;
-  $('found').style.display = 'none';
+// ── КНОПКА ────────────────────────────────────────────────────────────────
+document.getElementById('btn').addEventListener('click', async () => {
+  const raw = document.getElementById('arts').value.trim();
+  if (!raw) return setStatus('Введите хотя бы один артикул','err');
+  document.getElementById('btn').disabled=true;
+  document.getElementById('found').style.display='none';
   setProgress(1);
   try {
     setStatus('Загрузка каталога...');
     await loadCatalog();
     setProgress(20);
 
-    const articles = parseArticles(raw);
-    found = [];
-    const notFound = [];
+    const articles=parseArticles(raw);
+    found=[];
+    const notFound=[];
     for (const art of articles) {
-      const tile = catalog.find(t => t.article.toUpperCase() === art);
-      tile ? found.push({ tile, imgBytes: null }) : notFound.push(art);
+      const tile=catalog.find(t=>t.article.toUpperCase()===art);
+      tile?found.push({tile,imgBytes:null}):notFound.push(art);
     }
     if (!found.length) {
-      setStatus('Не найдено в каталоге: ' + notFound.join(', '), 'err');
-      setProgress(0); $('btn').disabled = false; return;
+      setStatus('Не найдено: '+notFound.join(', '),'err');
+      setProgress(0); document.getElementById('btn').disabled=false; return;
     }
     setProgress(30);
 
-    setStatus(`Найдено ${found.length}. Загружаем изображения...`);
-    let done = 0;
-    for (let i = 0; i < found.length; i += 3) {
-      await Promise.all(found.slice(i, i+3).map(async item => {
-        item.imgBytes = await fetchImg(item.tile);
-        done++;
-        setProgress(30 + Math.round(done / found.length * 50));
+    setStatus('Найдено '+found.length+'. Загружаем изображения...');
+    let done=0;
+    for (let i=0; i<found.length; i+=3) {
+      await Promise.all(found.slice(i,i+3).map(async item=>{
+        item.imgBytes=await fetchImg(item.tile); done++;
+        setProgress(30+Math.round(done/found.length*50));
       }));
     }
 
     renderFound();
-    $('found').style.display = 'block';
+    document.getElementById('found').style.display='block';
     setProgress(85);
 
     setStatus('Создаём документ...');
-    const buf = await buildDocx(found);
+    const buf=await buildDocx(found);
     setProgress(100);
 
-    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `КП_KM_${new Date().toLocaleDateString('ru').replace(/\./g,'-')}.docx`;
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='КП_KM_'+new Date().toLocaleDateString('ru').replace(/\./g,'-')+'.docx';
     a.click(); URL.revokeObjectURL(a.href);
 
-    let msg = `✓ Готово! ${found.length} позиций`;
-    if (notFound.length) msg += `. Не в каталоге: ${notFound.join(', ')}`;
-    setStatus(msg, 'ok');
+    let msg='✓ Готово! '+found.length+' позиций';
+    if (notFound.length) msg+='. Не в каталоге: '+notFound.join(', ');
+    setStatus(msg,'ok');
   } catch(e) {
-    setStatus('Ошибка: ' + e.message, 'err'); console.error(e);
+    setStatus('Ошибка: '+e.message,'err'); console.error(e);
   }
-  setProgress(0); $('btn').disabled = false;
+  setProgress(0); document.getElementById('btn').disabled=false;
 });
 
+// ── ПРЕВЬЮ ────────────────────────────────────────────────────────────────
 function renderFound() {
-  $('foundList').innerHTML = found.map(item => {
-    const t = item.tile;
-    const nm = t.name || t.collection || '—';
-    const w = t.width_mm, h = t.height_mm;
-    const sz = w && h ? `${w/10}×${h/10}×${t.thickness_mm||'?'} см` : '—';
-    const img = item.imgBytes
-      ? `<img class="fi-img" src="data:image/jpeg;base64,${bytesToBase64(item.imgBytes)}" alt="">`
-      : `<div class="fi-ph">${esc(t.article.slice(0,5))}</div>`;
-    return `<div class="fi">${img}<div><div class="fi-art">${esc(t.article)}</div><div class="fi-name">${esc(nm)}</div><div class="fi-size">${sz}</div></div></div>`;
+  document.getElementById('foundList').innerHTML=found.map(item=>{
+    const t=item.tile, nm=t.name||t.collection||'—';
+    const w=t.width_mm,h=t.height_mm;
+    const sz=w&&h?w/10+'×'+h/10+'×'+(t.thickness_mm||'?')+' см':'—';
+    const img=item.imgBytes
+      ?'<img class="fi-img" src="data:image/jpeg;base64,'+bytesToBase64(item.imgBytes)+'" alt="">'
+      :'<div class="fi-ph">'+esc(t.article.slice(0,5))+'</div>';
+    return '<div class="fi">'+img+'<div><div class="fi-art">'+esc(t.article)+'</div>'
+      +'<div class="fi-name">'+esc(nm)+'</div><div class="fi-size">'+sz+'</div></div></div>';
   }).join('');
 }
 
