@@ -6,6 +6,13 @@ const $ = id => document.getElementById(id);
 let catalog = [];
 let found   = [];
 
+// Сброс кэша при обновлении версии (новый формат tiles.json: width_cm/height_cm)
+const APP_VERSION = '2.0';
+if (localStorage.getItem('km_app_version') !== APP_VERSION) {
+  localStorage.removeItem('km_catalog');
+  localStorage.setItem('km_app_version', APP_VERSION);
+}
+
 // ── УТИЛИТЫ ───────────────────────────────────────────────────────────────
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -32,6 +39,19 @@ function decodeB64(b64) {
 }
 function parseArticles(raw) {
   return [...new Set(raw.split(/[\s,;]+/).map(s=>s.trim().toUpperCase().replace(/\s+/g,'')).filter(Boolean))];
+}
+// Размеры: новый формат хранит см (width_cm), старый — мм (width_mm). Возвращаем см.
+function tileSizeCm(t) {
+  const w = t.width_cm  != null ? +t.width_cm  : (t.width_mm  != null ? +t.width_mm  / 10 : null);
+  const h = t.height_cm != null ? +t.height_cm : (t.height_mm != null ? +t.height_mm / 10 : null);
+  const d = t.thickness_cm != null ? +t.thickness_cm : (t.thickness_mm != null ? +t.thickness_mm / 10 : null);
+  return { w, h, d };
+}
+function fmtSize(t, withUnit) {
+  const { w, h, d } = tileSizeCm(t);
+  if (!w || !h) return '—';
+  const base = `${w}×${h}×${d != null ? d : '?'}`;
+  return withUnit ? base + ' см' : base;
 }
 function tileUrl(article) {
   const art=article.toUpperCase();
@@ -139,8 +159,7 @@ document.getElementById('btn').addEventListener('click', async () => {
 function renderFound() {
   document.getElementById('foundList').innerHTML=found.map(item=>{
     const t=item.tile, nm=t.name||t.collection||'—';
-    const w=t.width_mm,h=t.height_mm;
-    const sz=w&&h?w/10+'×'+h/10+'×'+(t.thickness_mm||'?')+' см':'—';
+    const sz=fmtSize(t, true);
     const img=item.imgBytes
       ?'<img class="fi-img" src="data:image/jpeg;base64,'+bytesToBase64(item.imgBytes)+'" alt="">'
       :'<div class="fi-ph">'+esc(t.article.slice(0,5))+'</div>';
@@ -182,8 +201,7 @@ async function buildDocx(items) {
 
   function makeCell(item) {
     const t=item.tile, nm=t.name||t.collection||'';
-    const w=t.width_mm,h=t.height_mm;
-    const sz=w&&h?`${w/10}×${h/10}×${t.thickness_mm||'?'}`:'—';
+    const sz=fmtSize(t, false);
     const url=tileUrl(t.article);
     const C=AlignmentType.CENTER;
     const kids=[];
